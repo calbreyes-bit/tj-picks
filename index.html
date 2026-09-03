@@ -366,8 +366,9 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
   <div class="filter-sticky">
     <div class="filterbar-row">
       <div class="seg" id="presetSeg">
-        <button data-preset="30d" class="active">30D</button>
+        <button data-preset="today" class="active">Today</button>
         <button data-preset="7d">7D</button>
+        <button data-preset="30d">30D</button>
         <button data-preset="month">This Month</button>
         <button data-preset="all">All Time</button>
       </div>
@@ -502,11 +503,12 @@ const DATA = [{"id":"m1","league":"Australia - A-League","home":"Adelaide United
   var SLOTS_ALL = ['Lean 1','Lean 2','Lean 3','Parlay Piece'];
   var SLOT_SHORT = {'Lean 1':'Lean 1','Lean 2':'Lean 2','Lean 3':'Lean 3','Parlay Piece':'Parlay'};
   var activeSlots = {};
-  SLOTS_ALL.forEach(function(s){ activeSlots[s] = true; });
+  SLOTS_ALL.forEach(function(s){ activeSlots[s] = (s === 'Lean 1'); });
 
   var slotFilterEl = document.getElementById('slotFilter');
   slotFilterEl.innerHTML = SLOTS_ALL.map(function(s){
-    return '<button class="type-chip active" data-slot="'+esc(s)+'">'+esc(SLOT_SHORT[s])+'</button>';
+    var cls = 'type-chip' + (activeSlots[s] ? ' active' : '');
+    return '<button class="'+cls+'" data-slot="'+esc(s)+'">'+esc(SLOT_SHORT[s])+'</button>';
   }).join('');
   slotFilterEl.addEventListener('click', function(e){
     var btn = e.target.closest('.type-chip');
@@ -526,15 +528,22 @@ const DATA = [{"id":"m1","league":"Australia - A-League","home":"Adelaide United
   function setPresetRange(preset){
     var to = parseYMD(MAX_DATE);
     var from;
-    if (preset === '7d'){ from = new Date(to); from.setDate(from.getDate()-6); }
+    if (preset === 'today'){
+      var now = new Date();
+      var todayYMD = dstr(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+      from = parseYMD(todayYMD);
+      to = parseYMD(todayYMD);
+    }
+    else if (preset === '7d'){ from = new Date(to); from.setDate(from.getDate()-6); }
     else if (preset === '30d'){ from = new Date(to); from.setDate(from.getDate()-29); }
     else if (preset === 'month'){ from = new Date(to.getFullYear(), to.getMonth(), 1); }
     else { from = parseYMD(MIN_DATE); }
     if (from < parseYMD(MIN_DATE)) from = parseYMD(MIN_DATE);
+    if (to > parseYMD(MAX_DATE) && preset !== 'today') to = parseYMD(MAX_DATE);
     fromInput.value = dstr(from);
     toInput.value = dstr(to);
   }
-  setPresetRange('30d');
+  setPresetRange('today');
 
   presetSeg.addEventListener('click', function(e){
     var btn = e.target.closest('button[data-preset]');
