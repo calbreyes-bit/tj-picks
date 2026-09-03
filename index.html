@@ -188,13 +188,40 @@ header.top{
   border-radius:7px;padding:5px 8px;
 }
 
-.type-filter{display:flex;gap:6px;flex-wrap:wrap;}
-.type-chip{
-  border:1px solid var(--border);background:var(--surface);color:var(--ink-muted);
-  font-family:var(--font-body);font-size:12px;font-weight:600;
-  padding:5px 11px;border-radius:999px;cursor:pointer;
+/* ---------- multi-select dropdown filters (Type / Lean / League) ---------- */
+.msel-row{display:flex;gap:8px;flex-wrap:wrap;}
+.msel{position:relative;}
+.msel-btn{
+  display:flex;align-items:center;gap:6px;
+  border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  font-family:var(--font-body);font-size:12.5px;font-weight:600;
+  padding:6px 11px;border-radius:9px;cursor:pointer;
 }
-.type-chip.active{background:var(--ink);color:var(--bg);border-color:var(--ink);}
+.msel-btn:hover{border-color:var(--ink-faint);}
+.msel.open .msel-btn{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-fill);}
+.msel-label{color:var(--ink-faint);font-family:var(--font-display);text-transform:uppercase;font-size:10px;letter-spacing:.06em;}
+.msel-caret{font-size:9px;opacity:.55;margin-left:1px;}
+.msel-panel{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:20;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow);padding:8px;min-width:190px;max-width:260px;
+}
+.msel-actions{display:flex;gap:6px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.msel-actions button{
+  border:none;background:var(--surface-2);color:var(--ink-muted);
+  font-family:var(--font-body);font-size:11px;font-weight:600;
+  padding:4px 9px;border-radius:7px;cursor:pointer;
+}
+.msel-actions button:hover{color:var(--ink);}
+.msel-options{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+.msel-opt{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 6px;border-radius:7px;cursor:pointer;
+  font-size:12.5px;color:var(--ink);
+}
+.msel-opt:hover{background:var(--surface-2);}
+.msel-opt input{accent-color:var(--accent);flex:none;}
+.msel-opt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 /* ---------- breakdown section ---------- */
 .breakdowns{
@@ -369,7 +396,10 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
   .seg button{padding:4px 9px;font-size:11px;}
   .datefields{font-size:11px;}
   .datefields input{padding:3px 6px;font-size:11px;}
-  .type-chip{padding:3.5px 9px;font-size:10.5px;}
+  .msel-btn{padding:4px 9px;font-size:11px;}
+  .msel-panel{padding:6px;}
+  .msel-options{max-height:160px;}
+  .msel-opt{padding:3.5px 5px;font-size:11px;}
 
   .tabbar{margin-bottom:10px;}
   .tabbtn{padding:7px 2px;font-size:12px;}
@@ -426,11 +456,10 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
         <input type="date" id="toDate">
       </div>
     </div>
-    <div class="filterbar-row" style="margin-top:9px;">
-      <span class="filter-label">Type</span>
-      <div class="type-filter" id="typeFilter"></div>
-      <span class="filter-label" style="margin-left:14px;">Lean</span>
-      <div class="type-filter" id="slotFilter"></div>
+    <div class="filterbar-row msel-row" style="margin-top:9px;">
+      <div class="msel" id="typeMsel"></div>
+      <div class="msel" id="slotMsel"></div>
+      <div class="msel" id="leagueMsel"></div>
     </div>
   </div>
 
@@ -550,44 +579,102 @@ const DATA = [{"id":"m1","league":"Australia - A-League","home":"Adelaide United
   var allDates = DATA.map(function(m){ return m.date; }).filter(Boolean).sort();
   var MIN_DATE = allDates[0], MAX_DATE = allDates[allDates.length-1];
 
-  var TYPES = ['BTTS','Moneyline','Over/Under','Spread','Other'];
-  var activeTypes = {};
-  TYPES.forEach(function(t){ activeTypes[t] = true; });
+  // ---- generic multi-select dropdown (Type / Lean / League filters) ----
+  // Convention (matches the Match Day Board's League/Kickoff filters): nothing
+  // checked = no restriction on that dimension, i.e. "show all" rather than
+  // "show nothing" -- so there's no confusing empty-everything dead end.
+  function closeAllMsel(){
+    document.querySelectorAll('.msel-panel').forEach(function(p){ p.hidden = true; });
+    document.querySelectorAll('.msel.open').forEach(function(r){ r.classList.remove('open'); });
+  }
+  document.addEventListener('click', closeAllMsel);
 
-  var typeFilterEl = document.getElementById('typeFilter');
-  typeFilterEl.innerHTML = TYPES.map(function(t){
-    return '<button class="type-chip active" data-type="'+esc(t)+'">'+esc(t)+'</button>';
-  }).join('');
-  typeFilterEl.addEventListener('click', function(e){
-    var btn = e.target.closest('.type-chip');
-    if (!btn) return;
-    var t = btn.getAttribute('data-type');
-    var activeCount = TYPES.filter(function(x){return activeTypes[x];}).length;
-    if (activeTypes[t] && activeCount === 1) return; // keep at least one
-    activeTypes[t] = !activeTypes[t];
-    btn.classList.toggle('active', activeTypes[t]);
-    refresh();
+  function createMultiSelect(containerId, label, options, cfg){
+    cfg = cfg || {};
+    var shortLabel = cfg.shortLabel || function(o){ return o; };
+    var active = {};
+    options.forEach(function(o){ active[o] = cfg.defaultActive ? cfg.defaultActive(o) : true; });
+
+    var root = document.getElementById(containerId);
+    root.innerHTML =
+      '<button type="button" class="msel-btn"><span class="msel-label">'+esc(label)+'</span>'+
+      '<span class="msel-summary"></span><span class="msel-caret">&#9662;</span></button>'+
+      '<div class="msel-panel" hidden>'+
+        '<div class="msel-actions"><button type="button" data-act="all">All</button><button type="button" data-act="none">None</button></div>'+
+        '<div class="msel-options">'+
+          options.map(function(o){
+            return '<label class="msel-opt"><input type="checkbox" data-opt="'+esc(o)+'"><span>'+esc(shortLabel(o))+'</span></label>';
+          }).join('')+
+        '</div>'+
+      '</div>';
+
+    var btn = root.querySelector('.msel-btn');
+    var panel = root.querySelector('.msel-panel');
+    var summaryEl = root.querySelector('.msel-summary');
+    var checkboxes = root.querySelectorAll('.msel-options input[type=checkbox]');
+
+    function updateSummary(){
+      var activeList = options.filter(function(o){ return active[o]; });
+      var text;
+      if (activeList.length === options.length) text = 'All';
+      else if (activeList.length === 0) text = 'None';
+      else if (activeList.length === 1) text = shortLabel(activeList[0]);
+      else text = activeList.length + ' selected';
+      summaryEl.textContent = text;
+    }
+    checkboxes.forEach(function(cb){ cb.checked = !!active[cb.getAttribute('data-opt')]; });
+    updateSummary();
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var willOpen = panel.hidden;
+      closeAllMsel();
+      if (willOpen){ panel.hidden = false; root.classList.add('open'); }
+    });
+    panel.addEventListener('click', function(e){ e.stopPropagation(); });
+
+    function setAll(val){
+      options.forEach(function(o){ active[o] = val; });
+      checkboxes.forEach(function(cb){ cb.checked = val; });
+      updateSummary();
+      cfg.onChange && cfg.onChange();
+    }
+    root.querySelector('[data-act="all"]').addEventListener('click', function(){ setAll(true); });
+    root.querySelector('[data-act="none"]').addEventListener('click', function(){ setAll(false); });
+    checkboxes.forEach(function(cb){
+      cb.addEventListener('change', function(){
+        active[cb.getAttribute('data-opt')] = cb.checked;
+        updateSummary();
+        cfg.onChange && cfg.onChange();
+      });
+    });
+
+    return active; // live object -- filters read straight from this
+  }
+
+  function passesFilter(active, allOptions, value){
+    // nothing checked => no restriction on this dimension
+    var anyActive = allOptions.some(function(o){ return active[o]; });
+    if (!anyActive) return true;
+    return !!active[value];
+  }
+
+  var TYPES = ['BTTS','Moneyline','Over/Under','Spread','Other'];
+  var activeTypes = createMultiSelect('typeMsel', 'Type', TYPES, {
+    onChange: function(){ refresh(); }
   });
 
   var SLOTS_ALL = ['Lean 1','Lean 2','Lean 3','Parlay Piece'];
   var SLOT_SHORT = {'Lean 1':'Lean 1','Lean 2':'Lean 2','Lean 3':'Lean 3','Parlay Piece':'Parlay'};
-  var activeSlots = {};
-  SLOTS_ALL.forEach(function(s){ activeSlots[s] = (s === 'Lean 1'); });
+  var activeSlots = createMultiSelect('slotMsel', 'Lean', SLOTS_ALL, {
+    shortLabel: function(s){ return SLOT_SHORT[s]; },
+    defaultActive: function(s){ return s === 'Lean 1'; },
+    onChange: function(){ refresh(); }
+  });
 
-  var slotFilterEl = document.getElementById('slotFilter');
-  slotFilterEl.innerHTML = SLOTS_ALL.map(function(s){
-    var cls = 'type-chip' + (activeSlots[s] ? ' active' : '');
-    return '<button class="'+cls+'" data-slot="'+esc(s)+'">'+esc(SLOT_SHORT[s])+'</button>';
-  }).join('');
-  slotFilterEl.addEventListener('click', function(e){
-    var btn = e.target.closest('.type-chip');
-    if (!btn) return;
-    var s = btn.getAttribute('data-slot');
-    var activeCount = SLOTS_ALL.filter(function(x){return activeSlots[x];}).length;
-    if (activeSlots[s] && activeCount === 1) return; // keep at least one
-    activeSlots[s] = !activeSlots[s];
-    btn.classList.toggle('active', activeSlots[s]);
-    refresh();
+  var LEAGUES_ALL = Array.from(new Set(DATA.map(function(m){ return m.league; }).filter(Boolean))).sort();
+  var activeLeagues = createMultiSelect('leagueMsel', 'League', LEAGUES_ALL, {
+    onChange: function(){ refresh(); }
   });
 
   var fromInput = document.getElementById('fromDate');
@@ -632,9 +719,12 @@ const DATA = [{"id":"m1","league":"Australia - A-League","home":"Adelaide United
   function currentFiltered(){
     var from = fromInput.value, to = toInput.value;
     return DATA.filter(function(m){
-      return m.date && m.date >= from && m.date <= to;
+      if (!(m.date && m.date >= from && m.date <= to)) return false;
+      return passesFilter(activeLeagues, LEAGUES_ALL, m.league);
     }).map(function(m){
-      var picks = m.picks.filter(function(p){ return activeTypes[p.type] && activeSlots[p.slot]; });
+      var picks = m.picks.filter(function(p){
+        return passesFilter(activeTypes, TYPES, p.type) && passesFilter(activeSlots, SLOTS_ALL, p.slot);
+      });
       return picks.length ? Object.assign({}, m, {picks: picks}) : null;
     }).filter(Boolean);
   }
