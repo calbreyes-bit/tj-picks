@@ -177,7 +177,6 @@ header.top{
 }
 
 /* ---------- multi-select dropdown filters (Type / Lean / League) ---------- */
-.msel-row{display:flex;gap:8px;flex-wrap:wrap;}
 .msel{position:relative;}
 .msel-btn{
   display:flex;align-items:center;gap:6px;
@@ -379,7 +378,6 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
 
   .filter-sticky{padding:7px 0 8px;margin-bottom:10px;}
   .filterbar-row{gap:7px;}
-  .filterbar-row + .filterbar-row{margin-top:5px !important;}
   .filter-label{font-size:9.5px;}
   .datefields{font-size:11px;}
   .datefields input{padding:3px 6px;font-size:11px;}
@@ -436,8 +434,6 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
         <span>&ndash;</span>
         <input type="date" id="toDate">
       </div>
-    </div>
-    <div class="filterbar-row msel-row" style="margin-top:9px;">
       <div class="msel" id="typeMsel"></div>
       <div class="msel" id="slotMsel"></div>
       <div class="msel" id="leagueMsel"></div>
