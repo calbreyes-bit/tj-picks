@@ -459,7 +459,7 @@ table.details-table{width:100%;border-collapse:collapse;min-width:920px;}
         <div id="typeBreakdown"></div>
       </div>
       <div class="panel">
-        <h2>Top 10 leagues by hit rate</h2>
+        <h2>Top 8 leagues by hit rate</h2>
         <table class="league-table">
           <thead><tr><th>League</th><th class="num">Record</th><th class="num">Picks</th><th class="num">Hit%</th></tr></thead>
           <tbody id="leagueBreakdown"></tbody>
@@ -755,7 +755,7 @@ const DATA = [{"id":"m1","league":"Australia - A-League","home":"Adelaide United
       var d = stats.byLeague[lg];
       var g = d.hit + d.miss;
       return {lg:lg, g:g, hit:d.hit, miss:d.miss, rate: g ? d.hit/g : 0};
-    }).sort(function(a,b){ return b.rate - a.rate; }).slice(0, 10);
+    }).sort(function(a,b){ return b.rate - a.rate; }).slice(0, 8);
     if (!rows.length){ el.innerHTML = '<tr><td colspan="4" style="color:var(--ink-faint);padding:14px 0;">No graded picks in range</td></tr>'; return; }
     el.innerHTML = rows.map(function(r){
       var color = r.rate >= 0.5 ? 'var(--good)' : 'var(--bad)';
